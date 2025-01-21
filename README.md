@@ -1,3 +1,3 @@
 # goman
 
-A simple Pacman clone using Go and Ryalib
+A simple not so working Pacman clone using Go and Ryalib
