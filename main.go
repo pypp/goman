@@ -1,38 +1,12 @@
 package main
 
 import (
+	"example/user/hello/maps"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 type Direction int
 type Tile int
-
-// TODO: move this to a file
-
-var gameMap = [15][31]int{
-	{2, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
-	{1, 15, 15, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 1},
-	{1, 15, 2, 0, 10, 15, 1, 15, 2, 0, 10, 15, 11, 0, 0, 9, 0, 0, 10, 15, 11, 0, 3, 15, 12, 15, 11, 0, 3, 15, 1},
-	{1, 15, 13, 15, 15, 15, 1, 15, 1, 15, 15, 15, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 13, 15, 1, 15, 15, 15, 13, 15, 1},
-	{1, 15, 15, 15, 11, 0, 4, 15, 1, 15, 2, 0, 0, 10, 15, 13, 15, 11, 0, 0, 3, 15, 15, 15, 5, 0, 3, 15, 15, 15, 1},
-	{6, 0, 10, 15, 15, 15, 15, 15, 1, 15, 1, 15, 15, 15, 15, 15, 15, 15, 15, 15, 1, 15, 12, 15, 15, 15, 1, 15, 11, 0, 7},
-	{1, 15, 15, 15, 12, 15, 11, 0, 4, 15, 13, 15, 2, 0, 10, 17, 11, 0, 3, 15, 13, 15, 5, 0, 10, 15, 1, 15, 15, 15, 1},
-	{1, 15, 11, 0, 7, 15, 15, 15, 15, 15, 15, 15, 1, 17, 17, 18, 17, 17, 1, 15, 15, 15, 15, 15, 15, 15, 6, 0, 10, 15, 1},
-	{1, 15, 15, 15, 1, 15, 11, 0, 9, 0, 3, 15, 5, 0, 0, 9, 0, 0, 4, 15, 12, 15, 2, 0, 10, 15, 1, 15, 15, 15, 1},
-	{6, 0, 10, 15, 1, 15, 15, 15, 1, 15, 1, 15, 15, 15, 15, 1, 15, 15, 15, 15, 1, 15, 1, 15, 15, 15, 1, 15, 11, 0, 7},
-	{1, 15, 15, 15, 6, 0, 10, 15, 1, 15, 5, 0, 0, 10, 15, 1, 15, 11, 0, 0, 4, 15, 1, 15, 11, 0, 4, 15, 15, 15, 1},
-	{1, 15, 12, 15, 1, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 1, 15, 15, 15, 15, 15, 12, 15, 1},
-	{1, 15, 13, 15, 13, 15, 12, 15, 5, 0, 10, 15, 11, 0, 0, 8, 0, 0, 10, 15, 2, 0, 4, 15, 12, 15, 11, 0, 4, 15, 1},
-	{1, 15, 15, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 1, 15, 15, 15, 1, 15, 15, 15, 15, 15, 1},
-	{5, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 0, 0, 4},
-}
-
-
-const (
-	SPRITE_SIZE   float32 = 16
-	SCREEN_WIDTH  int32   = int32(len(gameMap[0])) * int32(SPRITE_SIZE)
-	SCREEN_HEIGHT int32   = int32(len(gameMap)) * int32(SPRITE_SIZE) 
-)
 
 const (
 	Right Direction = iota + 1
@@ -62,6 +36,9 @@ const (
 	Empty
 )
 
+const (
+	SPRITE_SIZE float32 = 16
+)
 
 var (
 	playerSprite     rl.Texture2D
@@ -76,6 +53,9 @@ var (
 	frameCount       int32     = 0
 	numberOfGhosts   int       = 4
 	nextDirection    Direction
+	gameMap          [][]int
+	mapHeight        int
+	mapWidth         int
 )
 
 func drawScene() {
@@ -223,15 +203,19 @@ func isGameOver() bool {
 }
 
 func main() {
-	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "goman")
+	gameMap, mapHeight, mapWidth = maps.LoadMap("./assets/maps/one.map")
+	screenWidth := int32(mapWidth) * int32(SPRITE_SIZE)
+	screenHeight := int32(mapHeight) * int32(SPRITE_SIZE)
+
+	rl.InitWindow(screenWidth, screenHeight, "goman")
 	rl.InitAudioDevice()
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
 	music := rl.LoadMusicStream("./assets/music.wav")
-	rl.SetMusicVolume(music, 0.5) 
- 	rl.PlayMusicStream(music);
+	rl.SetMusicVolume(music, 0.5)
+	rl.PlayMusicStream(music)
 
 	playerSprite = rl.LoadTexture("./assets/player.png")
 	ghostsSprite = rl.LoadTexture("./assets/ghosts.png")
@@ -242,7 +226,7 @@ func main() {
 			return
 		}
 
-		rl.UpdateMusicStream(music);
+		rl.UpdateMusicStream(music)
 
 		drawScene()
 		handleMovement()
@@ -251,7 +235,7 @@ func main() {
 
 	}
 
-	rl.StopMusicStream(music);
-	rl.CloseAudioDevice();
+	rl.StopMusicStream(music)
+	rl.CloseAudioDevice()
 	rl.CloseWindow()
 }
