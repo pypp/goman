@@ -12,7 +12,7 @@ type GhostTile int
 const (
 	Right Direction = iota + 1
 	Left
-	Top
+	Up
 	Down
 )
 
@@ -22,6 +22,20 @@ const (
 	BlueGhost
 	CyanGhost
 	PinkGhost
+)
+
+const (
+	RightStartAnimation = 0
+	LeftStartAnimation  = 3
+	UpStartAnimation   = 6
+	DownStartAnimation = 9
+)
+
+const (
+	RightEndAnimation  = 3
+	LeftEndAnimation   = 6
+	UpEndAnimation      = 9
+	DownEndAnimation    = 12
 )
 
 const (
@@ -50,35 +64,37 @@ const (
 )
 
 var (
-	playerSprite     rl.Texture2D
-	ghostsSprite     rl.Texture2D
-	ghostPosX        float32 = 80
-	ghostPosY        float32 = 80
-	mapSprite        rl.Texture2D
-	direction        Direction = Right
-	animationSpeed   int32     = 8
-	speed            float32   = 2
-	playerPosX       float32   = 16
-	playerPosY       float32   = 16
-	playerSpritePosX float32   = 0
-	frameCount       int32     = 0
-	numberOfGhosts   int       = 4
-	nextDirection    Direction
-	gameMap          [][]int
-	mapHeight        int
-	mapWidth         int
-	screenWidth      int32
-	screenHeight     int32
+	isForwardAnimation bool = true
+	gameOverSound      rl.Sound
+	music              rl.Music
+	playerSprite       rl.Texture2D
+	ghostsSprite       rl.Texture2D
+	ghostPosX          float32 = 80
+	ghostPosY          float32 = 80
+	mapSprite          rl.Texture2D
+	direction          Direction = Right
+	animationSpeed     int32     = 8
+	speed              float32   = 2
+	playerPosX         float32   = 16
+	playerPosY         float32   = 16
+	playerSpritePosX   float32   = 0
+	frameCount         int32     = 0
+	numberOfGhosts     int       = 4
+	nextDirection      Direction
+	gameMap            [][]int
+	mapHeight          int
+	mapWidth           int
+	screenWidth        int32
+	screenHeight       int32
 )
 
 func drawScene() {
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.Black)
 	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(playerPosX, playerPosY), rl.White)
-	// XXX: ghost position is fixed for now
 	rl.DrawTextureRec(ghostsSprite, rl.NewRectangle(0*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(ghostPosX, ghostPosY), rl.White)
 
-	// draw map
+	// draw the map
 	for y, h := range gameMap {
 		for x, cell := range h {
 			rl.DrawTextureRec(mapSprite, rl.NewRectangle(float32(cell)*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(float32(x)*SPRITE_SIZE, float32(y)*SPRITE_SIZE), rl.White)
@@ -115,7 +131,6 @@ func isCollision(x, y float32) bool {
 }
 
 func input() {
-	// Update nextDirection based on key press
 	if rl.IsKeyDown(rl.KeyRight) {
 		nextDirection = Right
 	}
@@ -123,7 +138,7 @@ func input() {
 		nextDirection = Left
 	}
 	if rl.IsKeyDown(rl.KeyUp) {
-		nextDirection = Top
+		nextDirection = Up
 	}
 	if rl.IsKeyDown(rl.KeyDown) {
 		nextDirection = Down
@@ -141,22 +156,28 @@ func handleMovement() {
 	}
 
 	// Check if the player can move in the nextDirection
-	switch nextDirection {
-	case Right:
-		if !isCollision(playerPosX+speed, playerPosY) {
-			direction = Right
-		}
-	case Left:
-		if !isCollision(playerPosX-speed, playerPosY) {
-			direction = Left
-		}
-	case Top:
-		if !isCollision(playerPosX, playerPosY-speed) {
-			direction = Top
-		}
-	case Down:
-		if !isCollision(playerPosX, playerPosY+speed) {
-			direction = Down
+	if (nextDirection != direction) {
+		switch nextDirection {
+		case Right:
+			if !isCollision(playerPosX+speed, playerPosY) {
+				direction = Right
+				playerSpritePosX = RightStartAnimation
+			}
+		case Left:
+			if !isCollision(playerPosX-speed, playerPosY) {
+				direction = Left
+				playerSpritePosX = LeftStartAnimation
+			}
+		case Up:
+			if !isCollision(playerPosX, playerPosY-speed) {
+				direction = Up
+				playerSpritePosX = UpStartAnimation
+			}
+		case Down:
+			if !isCollision(playerPosX, playerPosY+speed) {
+				direction = Down
+				playerSpritePosX = DownStartAnimation
+			}
 		}
 	}
 
@@ -165,40 +186,55 @@ func handleMovement() {
 	case Right:
 		if !isCollision(playerPosX+speed, playerPosY) {
 			playerPosX += speed
-			playerSpritePosX = 0 // Set the sprite to the "right" animation frame
 		}
 	case Left:
 		if !isCollision(playerPosX-speed, playerPosY) {
 			playerPosX -= speed
-			playerSpritePosX = 3 // Set the sprite to the "left" animation frame
 		}
-	case Top:
+	case Up:
 		if !isCollision(playerPosX, playerPosY-speed) {
 			playerPosY -= speed
-			playerSpritePosX = 6 // Set the sprite to the "up" animation frame
 		}
 	case Down:
 		if !isCollision(playerPosX, playerPosY+speed) {
 			playerPosY += speed
-			playerSpritePosX = 9 // Set the sprite to the "down" animation frame
 		}
 	}
 }
 
 func playerAnimation() {
 	if frameCount%animationSpeed == 0 {
-		nextFrame := playerSpritePosX + 1
-		switch nextFrame {
-		case 3:
-			playerSpritePosX = 0
-		case 6:
-			playerSpritePosX = 3
-		case 9:
-			playerSpritePosX = 6
-		case 12:
-			playerSpritePosX = 9
-		default:
+		var nextFrame float32
+
+		if isForwardAnimation {
+			nextFrame = playerSpritePosX + 1
+		} else {
+			nextFrame = playerSpritePosX - 1
+		}
+
+		switch direction {
+		case Right:
+			if (isForwardAnimation && nextFrame == 3) || (!isForwardAnimation && nextFrame == -1) {
+				isForwardAnimation = !isForwardAnimation
+			}
+		case Left:
+			if (isForwardAnimation && nextFrame == 6) || (!isForwardAnimation && nextFrame == 2) {
+				isForwardAnimation = !isForwardAnimation
+			}
+		case Up:
+			if (isForwardAnimation && nextFrame == 9) || (!isForwardAnimation && nextFrame == 5) {
+				isForwardAnimation = !isForwardAnimation
+			}
+		case Down:
+			if (isForwardAnimation && nextFrame == 12) || (!isForwardAnimation && nextFrame == 8) {
+				isForwardAnimation = !isForwardAnimation
+			}
+		}
+
+		if isForwardAnimation {
 			playerSpritePosX++
+		} else {
+			playerSpritePosX--
 		}
 	}
 
@@ -218,16 +254,23 @@ func isGameOver() bool {
 }
 
 func drawGameOverScene() {
-	rl.BeginDrawing()
-	rl.ClearBackground(rl.Black)
-	text := "Game Over!"
-	var fontSize int32 = 40
-	textWidth := rl.MeasureText(text, fontSize)
-	textHeight := fontSize
-	x := (screenWidth - textWidth) / 2
-	y := (screenHeight - textHeight) / 2
-	rl.DrawText(text, x, y, fontSize, rl.Red)
-	rl.EndDrawing()
+	rl.StopMusicStream(music)
+	rl.PlaySound(gameOverSound)
+
+	for rl.IsSoundPlaying(gameOverSound) {
+		var (
+			fontSize  int32 = 40
+			text            = "Game Over!"
+			textWidth       = rl.MeasureText(text, fontSize)
+			x               = (screenWidth - textWidth) / 2
+			y               = (screenHeight - fontSize) / 2
+		)
+
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.Black)
+		rl.DrawText(text, x, y, fontSize, rl.Red)
+		rl.EndDrawing()
+	}
 }
 
 func main() {
@@ -241,8 +284,8 @@ func main() {
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
-	gameOverSound := rl.LoadSound("./assets/audio/gameOverSound.wav")
-	music := rl.LoadMusicStream("./assets/audio/music.wav")
+	gameOverSound = rl.LoadSound("./assets/audio/gameOverSound.wav")
+	music = rl.LoadMusicStream("./assets/audio/music.wav")
 	rl.SetMusicVolume(music, 0.5)
 	rl.PlayMusicStream(music)
 
@@ -252,15 +295,12 @@ func main() {
 
 	for !rl.WindowShouldClose() {
 		if isGameOver() {
+			// TODO: go to home menu
 			return
 		}
 
 		if playerPosX == ghostPosX && playerPosY == ghostPosY {
-			rl.StopMusicStream(music)
-			rl.PlaySound(gameOverSound)
-			for rl.IsSoundPlaying(gameOverSound) {
-				drawGameOverScene()
-			}
+			drawGameOverScene()
 			return
 		} else {
 			drawScene()
