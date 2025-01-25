@@ -7,12 +7,21 @@ import (
 
 type Direction int
 type Tile int
+type GhostTile int
 
 const (
 	Right Direction = iota + 1
 	Left
 	Top
 	Down
+)
+
+const (
+	RedGhost GhostTile = iota
+	OrangeGhost
+	BlueGhost
+	CyanGhost
+	PinkGhost
 )
 
 const (
@@ -43,12 +52,14 @@ const (
 var (
 	playerSprite     rl.Texture2D
 	ghostsSprite     rl.Texture2D
+	ghostPosX        float32 = 80
+	ghostPosY        float32 = 80
 	mapSprite        rl.Texture2D
 	direction        Direction = Right
 	animationSpeed   int32     = 8
 	speed            float32   = 2
-	posX             float32   = 16
-	posY             float32   = 16
+	playerPosX       float32   = 16
+	playerPosY       float32   = 16
 	playerSpritePosX float32   = 0
 	frameCount       int32     = 0
 	numberOfGhosts   int       = 4
@@ -56,12 +67,16 @@ var (
 	gameMap          [][]int
 	mapHeight        int
 	mapWidth         int
+	screenWidth      int32
+	screenHeight     int32
 )
 
 func drawScene() {
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.Black)
-	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(posX, posY), rl.White)
+	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(playerPosX, playerPosY), rl.White)
+	// XXX: ghost position is fixed for now
+	rl.DrawTextureRec(ghostsSprite, rl.NewRectangle(0*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(ghostPosX, ghostPosY), rl.White)
 
 	// draw map
 	for y, h := range gameMap {
@@ -117,8 +132,8 @@ func input() {
 
 func handleMovement() {
 	// Get current grid coordinates
-	gridX := int(posX / SPRITE_SIZE)
-	gridY := int(posY / SPRITE_SIZE)
+	gridX := int(playerPosX / SPRITE_SIZE)
+	gridY := int(playerPosY / SPRITE_SIZE)
 
 	// Check if the player is walking over a tile with value 15, and change it to 17
 	if gameMap[gridY][gridX] == int(Point) {
@@ -128,19 +143,19 @@ func handleMovement() {
 	// Check if the player can move in the nextDirection
 	switch nextDirection {
 	case Right:
-		if !isCollision(posX+speed, posY) {
+		if !isCollision(playerPosX+speed, playerPosY) {
 			direction = Right
 		}
 	case Left:
-		if !isCollision(posX-speed, posY) {
+		if !isCollision(playerPosX-speed, playerPosY) {
 			direction = Left
 		}
 	case Top:
-		if !isCollision(posX, posY-speed) {
+		if !isCollision(playerPosX, playerPosY-speed) {
 			direction = Top
 		}
 	case Down:
-		if !isCollision(posX, posY+speed) {
+		if !isCollision(playerPosX, playerPosY+speed) {
 			direction = Down
 		}
 	}
@@ -148,23 +163,23 @@ func handleMovement() {
 	// Move in the current direction
 	switch direction {
 	case Right:
-		if !isCollision(posX+speed, posY) {
-			posX += speed
+		if !isCollision(playerPosX+speed, playerPosY) {
+			playerPosX += speed
 			playerSpritePosX = 0 // Set the sprite to the "right" animation frame
 		}
 	case Left:
-		if !isCollision(posX-speed, posY) {
-			posX -= speed
+		if !isCollision(playerPosX-speed, playerPosY) {
+			playerPosX -= speed
 			playerSpritePosX = 3 // Set the sprite to the "left" animation frame
 		}
 	case Top:
-		if !isCollision(posX, posY-speed) {
-			posY -= speed
+		if !isCollision(playerPosX, playerPosY-speed) {
+			playerPosY -= speed
 			playerSpritePosX = 6 // Set the sprite to the "up" animation frame
 		}
 	case Down:
-		if !isCollision(posX, posY+speed) {
-			posY += speed
+		if !isCollision(playerPosX, playerPosY+speed) {
+			playerPosY += speed
 			playerSpritePosX = 9 // Set the sprite to the "down" animation frame
 		}
 	}
@@ -202,10 +217,23 @@ func isGameOver() bool {
 	return true
 }
 
+func drawGameOverScene() {
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.Black)
+	text := "Game Over!"
+	var fontSize int32 = 40
+	textWidth := rl.MeasureText(text, fontSize)
+	textHeight := fontSize
+	x := (screenWidth - textWidth) / 2
+	y := (screenHeight - textHeight) / 2
+	rl.DrawText(text, x, y, fontSize, rl.Red)
+	rl.EndDrawing()
+}
+
 func main() {
 	gameMap, mapHeight, mapWidth = maps.LoadMap("./assets/maps/one.map")
-	screenWidth := int32(mapWidth) * int32(SPRITE_SIZE)
-	screenHeight := int32(mapHeight) * int32(SPRITE_SIZE)
+	screenWidth = int32(mapWidth) * int32(SPRITE_SIZE)
+	screenHeight = int32(mapHeight) * int32(SPRITE_SIZE)
 
 	rl.InitWindow(screenWidth, screenHeight, "goman")
 	rl.InitAudioDevice()
@@ -213,7 +241,8 @@ func main() {
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
-	music := rl.LoadMusicStream("./assets/music.wav")
+	gameOverSound := rl.LoadSound("./assets/audio/gameOverSound.wav")
+	music := rl.LoadMusicStream("./assets/audio/music.wav")
 	rl.SetMusicVolume(music, 0.5)
 	rl.PlayMusicStream(music)
 
@@ -226,15 +255,25 @@ func main() {
 			return
 		}
 
+		if playerPosX == ghostPosX && playerPosY == ghostPosY {
+			rl.StopMusicStream(music)
+			rl.PlaySound(gameOverSound)
+			for rl.IsSoundPlaying(gameOverSound) {
+				drawGameOverScene()
+			}
+			return
+		} else {
+			drawScene()
+			handleMovement()
+			input()
+			playerAnimation()
+		}
+
 		rl.UpdateMusicStream(music)
-
-		drawScene()
-		handleMovement()
-		input()
-		playerAnimation()
-
 	}
 
+	rl.UnloadSound(gameOverSound)
+	rl.CloseAudioDevice()
 	rl.StopMusicStream(music)
 	rl.CloseAudioDevice()
 	rl.CloseWindow()
