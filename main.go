@@ -9,6 +9,8 @@ type Direction int
 type Tile int
 type GhostTile int
 
+const AnimationLength = 3
+
 const (
 	Right Direction = iota + 1
 	Left
@@ -27,15 +29,8 @@ const (
 const (
 	RightStartAnimation = 0
 	LeftStartAnimation  = 3
-	UpStartAnimation   = 6
-	DownStartAnimation = 9
-)
-
-const (
-	RightEndAnimation  = 3
-	LeftEndAnimation   = 6
-	UpEndAnimation      = 9
-	DownEndAnimation    = 12
+	UpStartAnimation    = 6
+	DownStartAnimation  = 9
 )
 
 const (
@@ -156,7 +151,7 @@ func handleMovement() {
 	}
 
 	// Check if the player can move in the nextDirection
-	if (nextDirection != direction) {
+	if nextDirection != direction {
 		switch nextDirection {
 		case Right:
 			if !isCollision(playerPosX+speed, playerPosY) {
@@ -213,20 +208,16 @@ func playerAnimation() {
 		}
 
 		switch direction {
-		case Right:
-			if (isForwardAnimation && nextFrame == 3) || (!isForwardAnimation && nextFrame == -1) {
-				isForwardAnimation = !isForwardAnimation
-			}
-		case Left:
-			if (isForwardAnimation && nextFrame == 6) || (!isForwardAnimation && nextFrame == 2) {
-				isForwardAnimation = !isForwardAnimation
-			}
-		case Up:
-			if (isForwardAnimation && nextFrame == 9) || (!isForwardAnimation && nextFrame == 5) {
-				isForwardAnimation = !isForwardAnimation
-			}
-		case Down:
-			if (isForwardAnimation && nextFrame == 12) || (!isForwardAnimation && nextFrame == 8) {
+		case Right, Left, Up, Down:
+			startAnimation := map[Direction]int{
+				Right: RightStartAnimation,
+				Left:  LeftStartAnimation,
+				Up:    UpStartAnimation,
+				Down:  DownStartAnimation,
+			}[direction]
+
+			if isForwardAnimation && nextFrame == float32(startAnimation)+float32(AnimationLength) ||
+				!isForwardAnimation && nextFrame == float32(startAnimation)-1 {
 				isForwardAnimation = !isForwardAnimation
 			}
 		}
