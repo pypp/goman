@@ -126,17 +126,18 @@ func isCollision(x, y float32) bool {
 }
 
 func input() {
-	if rl.IsKeyDown(rl.KeyRight) {
-		nextDirection = Right
+	keyToDirection := map[int]Direction{
+		rl.KeyRight: Right,
+		rl.KeyLeft:  Left,
+		rl.KeyUp:    Up,
+		rl.KeyDown:  Down,
 	}
-	if rl.IsKeyDown(rl.KeyLeft) {
-		nextDirection = Left
-	}
-	if rl.IsKeyDown(rl.KeyUp) {
-		nextDirection = Up
-	}
-	if rl.IsKeyDown(rl.KeyDown) {
-		nextDirection = Down
+
+	for key, direction := range keyToDirection {
+		if rl.IsKeyDown(int32(key)) {
+			nextDirection = direction
+			break
+		}
 	}
 }
 
