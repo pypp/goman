@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/pypp/goman/maps"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/pypp/goman/maps"
+	"strconv"
+	"time"
 )
 
 type Direction int
@@ -59,6 +61,9 @@ const (
 )
 
 var (
+	isSoundOn          bool = true
+	isAttackMode       bool = false
+	gameScore          int  = 0
 	isForwardAnimation bool = true
 	gameOverSound      rl.Sound
 	music              rl.Music
@@ -74,7 +79,6 @@ var (
 	playerPosY         float32   = 16
 	playerSpritePosX   float32   = 0
 	frameCount         int32     = 0
-	numberOfGhosts     int       = 4
 	nextDirection      Direction
 	gameMap            [][]int
 	mapHeight          int
@@ -83,18 +87,52 @@ var (
 	screenHeight       int32
 )
 
-func drawScene() {
-	rl.BeginDrawing()
-	rl.ClearBackground(rl.Black)
-	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(playerPosX, playerPosY), rl.White)
-	rl.DrawTextureRec(ghostsSprite, rl.NewRectangle(0*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(ghostPosX, ghostPosY), rl.White)
+func drawBottomText() {
+	var textSound string
 
-	// draw the map
+	if isSoundOn {
+		textSound = "sound: on"
+	} else {
+		textSound = "sound: off"
+	}
+
+	// TODO: calcualte the position instead of using fixed sizes
+	rl.DrawText("score: "+strconv.Itoa(gameScore), 0, screenHeight-32, 30, rl.Red)
+	rl.DrawText(textSound, screenWidth-160, screenHeight-32, 30, rl.Red)
+}
+
+func drawMap() {
 	for y, h := range gameMap {
 		for x, cell := range h {
 			rl.DrawTextureRec(mapSprite, rl.NewRectangle(float32(cell)*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(float32(x)*SPRITE_SIZE, float32(y)*SPRITE_SIZE), rl.White)
 		}
 	}
+}
+
+func drawPlayer() {
+	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(playerPosX, playerPosY), rl.White)
+}
+
+func drawGhost() {
+	var ghostSpritePosX float32
+
+	if isAttackMode {
+		ghostSpritePosX = 2
+	} else {
+		ghostSpritePosX = 0
+	}
+
+	rl.DrawTextureRec(ghostsSprite, rl.NewRectangle(ghostSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(ghostPosX, ghostPosY), rl.White)
+}
+
+func drawScene() {
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.Black)
+
+	drawPlayer()
+	drawGhost()
+	drawMap()
+	drawBottomText()
 
 	rl.EndDrawing()
 }
@@ -113,12 +151,7 @@ func isCollision(x, y float32) bool {
 		gridX := int((x + corner.offsetX) / SPRITE_SIZE)
 		gridY := int((y + corner.offsetY) / SPRITE_SIZE)
 
-		if gridX < 0 || gridX >= len(gameMap[0]) || gridY < 0 || gridY >= len(gameMap) {
-			return true // Out of bounds
-		}
-
-		// Check if the tile is either 15 or 17 (both are walkable)
-		if gameMap[gridY][gridX] != int(Point) && gameMap[gridY][gridX] != int(Empty) {
+		if gameMap[gridY][gridX] < int(Point) {
 			return true // Wall detected
 		}
 	}
@@ -139,6 +172,10 @@ func input() {
 			break
 		}
 	}
+
+	if rl.IsKeyPressed(rl.KeyM) {
+		isSoundOn = !isSoundOn
+	}
 }
 
 func handleMovement() {
@@ -147,7 +184,16 @@ func handleMovement() {
 	gridY := int(playerPosY / SPRITE_SIZE)
 
 	// Check if the player is walking over a tile with value 15, and change it to 17
-	if gameMap[gridY][gridX] == int(Point) {
+	if gameMap[gridY][gridX] == int(Point) || gameMap[gridY][gridX] == int(Strawberry) {
+
+		if gameMap[gridY][gridX] == int(Point) {
+			gameScore = gameScore + 10 // if point
+		} else {
+			gameScore = gameScore + 50 // if strawberry
+			isAttackMode = true
+			time.AfterFunc(5*time.Second, func() { isAttackMode = false })
+		}
+
 		gameMap[gridY][gridX] = int(Empty)
 	}
 
@@ -268,7 +314,7 @@ func drawGameOverScene() {
 func main() {
 	gameMap, mapHeight, mapWidth = maps.LoadMap("./assets/maps/one.map")
 	screenWidth = int32(mapWidth) * int32(SPRITE_SIZE)
-	screenHeight = int32(mapHeight) * int32(SPRITE_SIZE)
+	screenHeight = int32(mapHeight)*int32(SPRITE_SIZE) + 30
 
 	rl.InitWindow(screenWidth, screenHeight, "goman")
 	rl.InitAudioDevice()
@@ -287,13 +333,18 @@ func main() {
 
 	for !rl.WindowShouldClose() {
 		if isGameOver() {
-			// TODO: go to home menu
 			return
 		}
 
 		if playerPosX == ghostPosX && playerPosY == ghostPosY {
-			drawGameOverScene()
-			return
+			if isAttackMode {
+				// TODO: eat the ghost
+				ghostPosX = -500
+				gameScore = gameScore + 200
+			} else {
+				drawGameOverScene()
+				return
+			}
 		} else {
 			drawScene()
 			handleMovement()
@@ -301,7 +352,9 @@ func main() {
 			playerAnimation()
 		}
 
-		rl.UpdateMusicStream(music)
+		if isSoundOn {
+			rl.UpdateMusicStream(music)
+		}
 	}
 
 	rl.UnloadSound(gameOverSound)
