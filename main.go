@@ -1,7 +1,7 @@
 package main
 
 import (
-	"example/user/hello/maps"
+	"github.com/pypp/goman/maps"
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 

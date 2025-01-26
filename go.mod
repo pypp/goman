@@ -1,4 +1,4 @@
-module example/user/hello
+module github.com/pypp/goman
 
 go 1.21.5
 
