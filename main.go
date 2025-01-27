@@ -1,10 +1,11 @@
 package main
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/pypp/goman/maps"
 	"strconv"
 	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+	"github.com/pypp/goman/maps"
 )
 
 type Direction int
@@ -61,12 +62,12 @@ const (
 )
 
 var (
+	music              rl.Music
 	isSoundOn          bool = true
 	isAttackMode       bool = false
 	gameScore          int  = 0
 	isForwardAnimation bool = true
 	gameOverSound      rl.Sound
-	music              rl.Music
 	playerSprite       rl.Texture2D
 	ghostsSprite       rl.Texture2D
 	ghostPosX          float32 = 80
@@ -322,16 +323,24 @@ func main() {
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
-	gameOverSound = rl.LoadSound("./assets/audio/gameOverSound.wav")
-	music = rl.LoadMusicStream("./assets/audio/music.wav")
-	rl.SetMusicVolume(music, 0.5)
-	rl.PlayMusicStream(music)
+	playerSprite = rl.LoadTexture("./assets/sprites/player.png")
+	ghostsSprite = rl.LoadTexture("./assets/sprites/ghosts.png")
+	mapSprite = rl.LoadTexture("./assets/sprites/tile.png")
 
-	playerSprite = rl.LoadTexture("./assets/player.png")
-	ghostsSprite = rl.LoadTexture("./assets/ghosts.png")
-	mapSprite = rl.LoadTexture("./assets/tile.png")
+	gameOverSound = rl.LoadSound("./assets/audio/game_over_sound.wav.wav")
+	wakaWakaMusic := rl.LoadMusicStream("./assets/audio/waka_waka.wav")
+	mainMusic := rl.LoadMusicStream("./assets/audio/music.wav")
 
 	for !rl.WindowShouldClose() {
+		if isAttackMode {
+			music = wakaWakaMusic
+		} else {
+			music = mainMusic
+		}
+
+		rl.SetMusicVolume(music, 0.5)
+		rl.PlayMusicStream(music)
+
 		if isGameOver() {
 			return
 		}
@@ -358,7 +367,6 @@ func main() {
 	}
 
 	rl.UnloadSound(gameOverSound)
-	rl.CloseAudioDevice()
 	rl.StopMusicStream(music)
 	rl.CloseAudioDevice()
 	rl.CloseWindow()
