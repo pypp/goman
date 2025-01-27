@@ -21,6 +21,23 @@ const (
 	Down
 )
 
+type Player struct {
+	posX float32
+	posY float32
+	// TODO: make object for player sprite
+	spritePosX         float32
+	direction          Direction
+	nextDirection      Direction
+	isForwardAnimation bool
+}
+
+type Ghost struct {
+	posX float32
+	posY float32
+	// TODO: will just be color type
+	spritePosX float32
+}
+
 const (
 	RedGhost GhostTile = iota
 	OrangeGhost
@@ -58,51 +75,48 @@ const (
 )
 
 const (
-	SPRITE_SIZE float32 = 16
+	SPRITE_SIZE     float32 = 16
+	ANIMATION_SPEED int32   = 8
+	SPEED           float32 = 2
 )
 
 var (
-	music              rl.Music
-	isSoundOn          bool = true
-	isAttackMode       bool = false
-	gameScore          int  = 0
-	isForwardAnimation bool = true
-	gameOverSound      rl.Sound
-	playerSprite       rl.Texture2D
-	ghostsSprite       rl.Texture2D
-	ghostPosX          float32 = 80
-	ghostPosY          float32 = 80
-	mapSprite          rl.Texture2D
+	frameCount   int32 = 0
+	music        rl.Music
+	isMuted      bool = false
+	isAttackMode bool = false
+	gameScore    int  = 0
+	gameMap      [][]int
+
+	ghostPosX float32 = 80
+	ghostPosY float32 = 80
+
+	// TODO: move to player struct
 	direction          Direction = Right
-	animationSpeed     int32     = 8
-	speed              float32   = 2
 	playerPosX         float32   = 16
 	playerPosY         float32   = 16
 	playerSpritePosX   float32   = 0
-	frameCount         int32     = 0
 	nextDirection      Direction
-	gameMap            [][]int
-	mapHeight          int
-	mapWidth           int
-	screenWidth        int32
-	screenHeight       int32
+	isForwardAnimation bool = true
 )
 
 func drawBottomText() {
 	var textSound string
 
-	if isSoundOn {
-		textSound = "sound: on"
-	} else {
+	if isMuted {
 		textSound = "sound: off"
+	} else {
+		textSound = "sound: on"
 	}
 
-	// TODO: calcualte the position instead of using fixed sizes
-	rl.DrawText("score: "+strconv.Itoa(gameScore), 0, screenHeight-32, 30, rl.Red)
-	rl.DrawText(textSound, screenWidth-160, screenHeight-32, 30, rl.Red)
+	winWidth, winHeight := int32(rl.GetScreenWidth()), int32(rl.GetScreenHeight())
+
+	// TODO: calculate the position instead of using fixed sizes
+	rl.DrawText("score: "+strconv.Itoa(gameScore), 0, winHeight-32, 30, rl.Red)
+	rl.DrawText(textSound, winWidth-160, winHeight-32, 30, rl.Red)
 }
 
-func drawMap() {
+func drawMap(mapSprite rl.Texture2D) {
 	for y, h := range gameMap {
 		for x, cell := range h {
 			rl.DrawTextureRec(mapSprite, rl.NewRectangle(float32(cell)*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(float32(x)*SPRITE_SIZE, float32(y)*SPRITE_SIZE), rl.White)
@@ -110,30 +124,36 @@ func drawMap() {
 	}
 }
 
-func drawPlayer() {
+func drawPlayer(playerSprite rl.Texture2D) {
 	rl.DrawTextureRec(playerSprite, rl.NewRectangle(playerSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(playerPosX, playerPosY), rl.White)
 }
 
-func drawGhost() {
-	var ghostSpritePosX float32
+func drawGhost(posY, poxY float32, ghostColor GhostTile, ghostSprite rl.Texture2D) {
+	var tile float32
 
 	if isAttackMode {
-		ghostSpritePosX = 2
+		tile = float32(BlueGhost)
 	} else {
-		ghostSpritePosX = 0
+		tile = float32(ghostColor)
 	}
 
-	rl.DrawTextureRec(ghostsSprite, rl.NewRectangle(ghostSpritePosX*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(ghostPosX, ghostPosY), rl.White)
+	rl.DrawTextureRec(ghostSprite, rl.NewRectangle(float32(tile)*SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE), rl.NewVector2(posY, poxY), rl.White)
 }
 
-func drawScene() {
+func drawScene(playerSprite, ghostsSprite, mapSprite rl.Texture2D) {
+
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.Black)
 
-	drawPlayer()
-	drawGhost()
-	drawMap()
+	drawPlayer(playerSprite)
+
+	drawMap(mapSprite)
 	drawBottomText()
+
+	drawGhost(80, 80, RedGhost, ghostsSprite)
+	drawGhost(208, 16, OrangeGhost, ghostsSprite)
+	drawGhost(16, 208, CyanGhost, ghostsSprite)
+	drawGhost(160, 208, PinkGhost, ghostsSprite)
 
 	rl.EndDrawing()
 }
@@ -175,7 +195,7 @@ func input() {
 	}
 
 	if rl.IsKeyPressed(rl.KeyM) {
-		isSoundOn = !isSoundOn
+		isMuted = !isMuted
 	}
 }
 
@@ -202,22 +222,22 @@ func handleMovement() {
 	if nextDirection != direction {
 		switch nextDirection {
 		case Right:
-			if !isCollision(playerPosX+speed, playerPosY) {
+			if !isCollision(playerPosX+SPEED, playerPosY) {
 				direction = Right
 				playerSpritePosX = RightStartAnimation
 			}
 		case Left:
-			if !isCollision(playerPosX-speed, playerPosY) {
+			if !isCollision(playerPosX-SPEED, playerPosY) {
 				direction = Left
 				playerSpritePosX = LeftStartAnimation
 			}
 		case Up:
-			if !isCollision(playerPosX, playerPosY-speed) {
+			if !isCollision(playerPosX, playerPosY-SPEED) {
 				direction = Up
 				playerSpritePosX = UpStartAnimation
 			}
 		case Down:
-			if !isCollision(playerPosX, playerPosY+speed) {
+			if !isCollision(playerPosX, playerPosY+SPEED) {
 				direction = Down
 				playerSpritePosX = DownStartAnimation
 			}
@@ -227,26 +247,26 @@ func handleMovement() {
 	// Move in the current direction
 	switch direction {
 	case Right:
-		if !isCollision(playerPosX+speed, playerPosY) {
-			playerPosX += speed
+		if !isCollision(playerPosX+SPEED, playerPosY) {
+			playerPosX += SPEED
 		}
 	case Left:
-		if !isCollision(playerPosX-speed, playerPosY) {
-			playerPosX -= speed
+		if !isCollision(playerPosX-SPEED, playerPosY) {
+			playerPosX -= SPEED
 		}
 	case Up:
-		if !isCollision(playerPosX, playerPosY-speed) {
-			playerPosY -= speed
+		if !isCollision(playerPosX, playerPosY-SPEED) {
+			playerPosY -= SPEED
 		}
 	case Down:
-		if !isCollision(playerPosX, playerPosY+speed) {
-			playerPosY += speed
+		if !isCollision(playerPosX, playerPosY+SPEED) {
+			playerPosY += SPEED
 		}
 	}
 }
 
 func playerAnimation() {
-	if frameCount%animationSpeed == 0 {
+	if frameCount%ANIMATION_SPEED == 0 {
 		var nextFrame float32
 
 		if isForwardAnimation {
@@ -292,7 +312,8 @@ func isGameOver() bool {
 	return true
 }
 
-func drawGameOverScene() {
+func drawGameOverScene(gameOverSound rl.Sound) {
+	winWidth, winHeight := int32(rl.GetScreenWidth()), int32(rl.GetScreenHeight())
 	rl.StopMusicStream(music)
 	rl.PlaySound(gameOverSound)
 
@@ -301,8 +322,8 @@ func drawGameOverScene() {
 			fontSize  int32 = 40
 			text            = "Game Over!"
 			textWidth       = rl.MeasureText(text, fontSize)
-			x               = (screenWidth - textWidth) / 2
-			y               = (screenHeight - fontSize) / 2
+			x               = (winWidth - textWidth) / 2
+			y               = (winHeight - fontSize) / 2
 		)
 
 		rl.BeginDrawing()
@@ -313,9 +334,11 @@ func drawGameOverScene() {
 }
 
 func main() {
+	var mapHeight, mapWidth int
 	gameMap, mapHeight, mapWidth = maps.LoadMap("./assets/maps/one.map")
-	screenWidth = int32(mapWidth) * int32(SPRITE_SIZE)
-	screenHeight = int32(mapHeight)*int32(SPRITE_SIZE) + 30
+
+	screenWidth := int32(mapWidth) * int32(SPRITE_SIZE)
+	screenHeight := int32(mapHeight)*int32(SPRITE_SIZE) + 30
 
 	rl.InitWindow(screenWidth, screenHeight, "goman")
 	rl.InitAudioDevice()
@@ -323,13 +346,12 @@ func main() {
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
-	playerSprite = rl.LoadTexture("./assets/sprites/player.png")
-	ghostsSprite = rl.LoadTexture("./assets/sprites/ghosts.png")
-	mapSprite = rl.LoadTexture("./assets/sprites/tile.png")
-
-	gameOverSound = rl.LoadSound("./assets/audio/game_over_sound.wav.wav")
+	gameOverSound := rl.LoadSound("./assets/audio/game_over_sound.wav.wav")
 	wakaWakaMusic := rl.LoadMusicStream("./assets/audio/waka_waka.wav")
 	mainMusic := rl.LoadMusicStream("./assets/audio/music.wav")
+	playerSprite := rl.LoadTexture("./assets/sprites/player.png")
+	ghostsSprite := rl.LoadTexture("./assets/sprites/ghosts.png")
+	mapSprite := rl.LoadTexture("./assets/sprites/tile.png")
 
 	for !rl.WindowShouldClose() {
 		if isAttackMode {
@@ -348,20 +370,19 @@ func main() {
 		if playerPosX == ghostPosX && playerPosY == ghostPosY {
 			if isAttackMode {
 				// TODO: eat the ghost
-				ghostPosX = -500
 				gameScore = gameScore + 200
 			} else {
-				drawGameOverScene()
+				drawGameOverScene(gameOverSound)
 				return
 			}
 		} else {
-			drawScene()
+			drawScene(playerSprite, ghostsSprite, mapSprite)
 			handleMovement()
 			input()
 			playerAnimation()
 		}
 
-		if isSoundOn {
+		if !isMuted {
 			rl.UpdateMusicStream(music)
 		}
 	}
