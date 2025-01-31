@@ -21,6 +21,11 @@ const (
 	Down
 )
 
+type Character struct {
+	posX float32
+	posY float32
+}
+
 type Player struct {
 	posX float32
 	posY float32
@@ -32,10 +37,28 @@ type Player struct {
 }
 
 type Ghost struct {
-	posX float32
-	posY float32
+	Character
 	// TODO: will just be color type
-	spritePosX float32
+	color      GhostTile
+}
+
+var ghosts = []Ghost{
+	Ghost{
+		color:     RedGhost,
+		Character: Character{posX: 80, posY: 80},
+	},
+	Ghost{
+		color:     PinkGhost,
+		Character: Character{posX: 208, posY: 16},
+	},
+	Ghost{
+		color:     OrangeGhost,
+		Character: Character{posX: 16, posY: 208},
+	},
+	Ghost{
+		color:     CyanGhost,
+		Character: Character{posX: 160, posY: 208},
+	},
 }
 
 const (
@@ -88,9 +111,6 @@ var (
 	gameScore    int  = 0
 	gameMap      [][]int
 
-	ghostPosX float32 = 80
-	ghostPosY float32 = 80
-
 	// TODO: move to player struct
 	direction          Direction = Right
 	playerPosX         float32   = 16
@@ -99,6 +119,16 @@ var (
 	nextDirection      Direction
 	isForwardAnimation bool = true
 )
+
+func isCollisionWithGhosts() bool {
+	for _, ghost := range ghosts {
+		if playerPosX == ghost.posX && playerPosY == ghost.posY {
+			return true
+		}
+	}
+
+	return false
+}
 
 func drawBottomText() {
 	var textSound string
@@ -141,7 +171,6 @@ func drawGhost(posY, poxY float32, ghostColor GhostTile, ghostSprite rl.Texture2
 }
 
 func drawScene(playerSprite, ghostsSprite, mapSprite rl.Texture2D) {
-
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.Black)
 
@@ -150,10 +179,9 @@ func drawScene(playerSprite, ghostsSprite, mapSprite rl.Texture2D) {
 	drawMap(mapSprite)
 	drawBottomText()
 
-	drawGhost(80, 80, RedGhost, ghostsSprite)
-	drawGhost(208, 16, OrangeGhost, ghostsSprite)
-	drawGhost(16, 208, CyanGhost, ghostsSprite)
-	drawGhost(160, 208, PinkGhost, ghostsSprite)
+	for _, ghost := range ghosts {
+		drawGhost(ghost.posX, ghost.posY, ghost.color, ghostsSprite)
+	}
 
 	rl.EndDrawing()
 }
@@ -346,7 +374,7 @@ func main() {
 	rl.SetTargetFPS(60)
 	rl.SetExitKey(0)
 
-	gameOverSound := rl.LoadSound("./assets/audio/game_over_sound.wav.wav")
+	gameOverSound := rl.LoadSound("./assets/audio/game_over_sound.wav")
 	wakaWakaMusic := rl.LoadMusicStream("./assets/audio/waka_waka.wav")
 	mainMusic := rl.LoadMusicStream("./assets/audio/music.wav")
 	playerSprite := rl.LoadTexture("./assets/sprites/player.png")
@@ -367,7 +395,7 @@ func main() {
 			return
 		}
 
-		if playerPosX == ghostPosX && playerPosY == ghostPosY {
+		if isCollisionWithGhosts() {
 			if isAttackMode {
 				// TODO: eat the ghost
 				gameScore = gameScore + 200
