@@ -21,43 +21,42 @@ const (
 	Down
 )
 
-type Character struct {
+type Position struct {
 	posX float32
 	posY float32
 }
 
-type Player struct {
-	posX float32
-	posY float32
-	// TODO: make object for player sprite
-	spritePosX         float32
-	direction          Direction
-	nextDirection      Direction
-	isForwardAnimation bool
-}
+// type Player struct {
+// 	posX               float32
+// 	posY               float32
+// 	spritePosX         float32
+// 	direction          Direction
+// 	nextDirection      Direction
+// 	isForwardAnimation bool
+// }
 
 type Ghost struct {
-	Character
+	position Position
 	// TODO: will just be color type
-	color      GhostTile
+	color GhostTile
 }
 
-var ghosts = []Ghost{
-	Ghost{
-		color:     RedGhost,
-		Character: Character{posX: 80, posY: 80},
+var ghosts = []*Ghost{
+	{
+		color:    RedGhost,
+		position: Position{posX: 80, posY: 80},
 	},
-	Ghost{
-		color:     PinkGhost,
-		Character: Character{posX: 208, posY: 16},
+	{
+		color:    PinkGhost,
+		position: Position{posX: 208, posY: 16},
 	},
-	Ghost{
-		color:     OrangeGhost,
-		Character: Character{posX: 16, posY: 208},
+	{
+		color:    OrangeGhost,
+		position: Position{posX: 16, posY: 208},
 	},
-	Ghost{
-		color:     CyanGhost,
-		Character: Character{posX: 160, posY: 208},
+	{
+		color:    CyanGhost,
+		position: Position{posX: 160, posY: 208},
 	},
 }
 
@@ -95,6 +94,7 @@ const (
 	Point
 	Strawberry
 	Empty
+	Spawn
 )
 
 const (
@@ -120,14 +120,32 @@ var (
 	isForwardAnimation bool = true
 )
 
+func findShortestPath(start, end Position) {
+}
+
 func isCollisionWithGhosts() bool {
 	for _, ghost := range ghosts {
-		if playerPosX == ghost.posX && playerPosY == ghost.posY {
+		if playerPosX == ghost.position.posX && playerPosY == ghost.position.posY {
+			var posX, posY = getGhostSpawnLocation()
+			ghost.position.posX = posX
+			ghost.position.posY = posY
 			return true
 		}
 	}
 
 	return false
+}
+
+func getGhostSpawnLocation() (float32, float32) {
+	for y, h := range gameMap {
+		for x, cell := range h {
+			if cell == int(Spawn) {
+				return SPRITE_SIZE * float32(x), SPRITE_SIZE * float32(y)
+			}
+		}
+	}
+
+	return 0, 0
 }
 
 func drawBottomText() {
@@ -180,7 +198,7 @@ func drawScene(playerSprite, ghostsSprite, mapSprite rl.Texture2D) {
 	drawBottomText()
 
 	for _, ghost := range ghosts {
-		drawGhost(ghost.posX, ghost.posY, ghost.color, ghostsSprite)
+		drawGhost(ghost.position.posX, ghost.position.posY, ghost.color, ghostsSprite)
 	}
 
 	rl.EndDrawing()
@@ -200,7 +218,7 @@ func isCollision(x, y float32) bool {
 		gridX := int((x + corner.offsetX) / SPRITE_SIZE)
 		gridY := int((y + corner.offsetY) / SPRITE_SIZE)
 
-		if gameMap[gridY][gridX] < int(Point) {
+		if gameMap[gridY][gridX] < int(Point) || gameMap[gridY][gridX] == int(Spawn) {
 			return true // Wall detected
 		}
 	}
@@ -390,6 +408,7 @@ func main() {
 
 		rl.SetMusicVolume(music, 0.5)
 		rl.PlayMusicStream(music)
+		rl.DrawFPS(10, 10)
 
 		if isGameOver() {
 			return
